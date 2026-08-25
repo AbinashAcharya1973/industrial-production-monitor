@@ -1,0 +1,23 @@
+SELECTCOM(0)
+
+$10 = SPRINTF($200,"%u,%u,%u,%u,%u,%u,%u,1,M/C No.23/350,%u\r\n",{Link2}1@D452,{Link2}1@D708,{Link2}1@D704,{Link2}1@D700,{Link2}1@D810,{Link2}1@D806,{Link2}1@D802,{Link2}1@D440)
+$100 = PUTCHARS($200,120,300)
+DELAY(500)
+
+$10 = SPRINTF($200,"%u,%u,%u,%u,%u,%u,%u,1,M/C No.25/350,%u\r\n",{Link2}1@D452,{Link2}1@D708,{Link2}1@D704,{Link2}1@D700,{Link2}1@D810,{Link2}1@D806,{Link2}1@D802,{Link2}1@D441)
+$100 = PUTCHARS($200,120,300)
+DELAY(500)
+
+$10 = SPRINTF($200,"%u,%u,%u,%u,%u,%u,%u,1,M/C No.26/350,%u\r\n",{Link2}1@D452,{Link2}1@D708,{Link2}1@D704,{Link2}1@D700,{Link2}1@D810,{Link2}1@D806,{Link2}1@D802,{Link2}1@D442)
+$100 = PUTCHARS($200,120,300)
+DELAY(500)
+
+$10 = SPRINTF($200,"%u,%u,%u,%u,%u,%u,%u,2,M/C No.28/250,%u\r\n",{Link2}1@D452,{Link2}1@D708,{Link2}1@D704,{Link2}1@D700,{Link2}1@D810,{Link2}1@D806,{Link2}1@D802,{Link2}1@D443)
+$100 = PUTCHARS($200,120,300)
+DELAY(500)
+
+$10 = SPRINTF($200,"%u,%u,%u,%u,%u,%u,%u,2,M/C No.30/250,%u\r\n",{Link2}1@D452,{Link2}1@D708,{Link2}1@D704,{Link2}1@D700,{Link2}1@D810,{Link2}1@D806,{Link2}1@D802,{Link2}1@D444)
+$100 = PUTCHARS($200,120,300)
+DELAY(500)
+
+DELAY(5000)
