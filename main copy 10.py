@@ -144,7 +144,6 @@ class DatabaseManager:
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._last_count_by_machine = {}
         self._create_tables()
-        self._load_last_counts()
 
     def _machine_key(self, fields: dict) -> tuple[str, str, str]:
         return (
@@ -196,16 +195,6 @@ class DatabaseManager:
                     conveyorname VARCHAR,
                     productslno VARCHAR,
                     target      INTEGER
-                )
-            """)
-            # machine_counter_state table: stores the latest count observed per machine
-            self._conn.execute("""
-                CREATE TABLE IF NOT EXISTS machine_counter_state (
-                    panel_id TEXT NOT NULL,
-                    zone TEXT NOT NULL,
-                    conveyor TEXT NOT NULL,
-                    last_count INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (panel_id, zone, conveyor)
                 )
             """)
             # Migration: add productslno and target columns to existing DBs that lack them
@@ -379,31 +368,6 @@ class DatabaseManager:
             self._conn.commit()
 
     # ── STEP 2a: INSERT ───────────────────────────────────────
-    def _load_last_counts(self):
-        """Refresh the in-memory cache from the persistent machine_counter_state table."""
-        with self._lock:
-            rows = self._conn.execute("""
-                SELECT panel_id, zone, conveyor, last_count
-                FROM machine_counter_state
-            """).fetchall()
-        self._last_count_by_machine = {
-            (str(row["panel_id"]), str(row["zone"]), str(row["conveyor"])): int(row["last_count"])
-            for row in rows
-        }
-
-    def _upsert_machine_counter_state(self, panel_id: str, zone: str, conveyor: str, last_count: int):
-        """Persist the latest machine total for a given panel/zone/conveyor."""
-        key = (str(panel_id), str(zone), str(conveyor))
-        with self._lock:
-            self._conn.execute("""
-                INSERT INTO machine_counter_state (panel_id, zone, conveyor, last_count)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(panel_id, zone, conveyor)
-                DO UPDATE SET last_count = excluded.last_count
-            """, (panel_id, zone, conveyor, int(last_count)))
-            self._conn.commit()
-        self._last_count_by_machine[key] = int(last_count)
-
     def insert(self, fields: dict) -> int:
         """
         INSERT one parsed-packet dict into the production table.
@@ -417,27 +381,14 @@ class DatabaseManager:
         """
         conveyor_name = fields.get("conveyor_name", "")
         machine_key = self._machine_key(fields)
-
         previous_count = self._last_count_by_machine.get(machine_key)
-        if previous_count is None:
-            with self._lock:
-                row = self._conn.execute("""
-                    SELECT last_count
-                    FROM machine_counter_state
-                    WHERE panel_id = ? AND zone = ? AND conveyor = ?
-                """, (machine_key[0], machine_key[1], machine_key[2])).fetchone()
-            if row is not None:
-                previous_count = int(row[0])
-                self._last_count_by_machine[machine_key] = previous_count
-
         current_count = int(fields["count"])
+
         if previous_count is not None:
             if current_count == previous_count:
                 return -1
             if current_count < previous_count:
-                self._upsert_machine_counter_state(
-                    machine_key[0], machine_key[1], machine_key[2], current_count
-                )
+                self._last_count_by_machine[machine_key] = current_count
                 return -1
             current_count = current_count - previous_count
             fields = dict(fields)
@@ -471,10 +422,7 @@ class DatabaseManager:
                    fields["count"], productslno, target))
             self._conn.commit()
 
-        state_total = int(fields["count"]) + int(previous_count or 0)
-        self._upsert_machine_counter_state(
-            machine_key[0], machine_key[1], machine_key[2], state_total
-        )
+        self._last_count_by_machine[machine_key] = int(fields["count"]) + int(previous_count or 0)
         return cur.lastrowid
 
     # ── STEP 2b: SELECT for Production Table tab ──────────────
