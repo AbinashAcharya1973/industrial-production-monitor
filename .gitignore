@@ -1,0 +1,34 @@
+# Build artifacts
+/build/
+/dist/
+/*.spec
+
+# Virtual environment
+/.venv/
+/venv/
+
+# Database files
+/*.db
+/*.db-journal
+
+# Backup folders
+/backups/
+/plan_backups/
+
+# Archives
+/Archive*.zip
+/*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+
+# Python
+/__pycache__/
+*.pyc
+*.pyo
