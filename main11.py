@@ -718,7 +718,7 @@ class DatabaseManager:
 
 
     def export_csv(self, filepath: str):
-        """Export production table joined with products to CSV (raw packets)."""
+        """Export production table joined with products to CSV."""
         with self._lock:
             rows = self._conn.execute("""
                 SELECT
@@ -739,50 +739,6 @@ class DatabaseManager:
             ])
             for r in rows:
                 writer.writerow(list(r))
-
-    def export_production_table_csv(self, filepath: str,
-                                    quick_filter: str = "all",
-                                    panel_id: str | None = None,
-                                    zone: str | None = None,
-                                    conveyor: str | None = None) -> int:
-        """
-        Export the Production Table view (UI layout) to CSV: one row per
-        machine per day with the same columns as the on-screen table —
-
-            Date, Panel, Zone, Line Name, Product Slno, Part No, Target,
-            00:00 … 23:00, Day Total
-
-        Honors the same quick_filter / panel / zone / conveyor filters as
-        the UI, so the CSV matches what is currently displayed.
-        Returns the number of data rows written.
-        """
-        rows = self.query_production_table(
-            quick_filter=quick_filter, panel_id=panel_id,
-            zone=zone, conveyor=conveyor,
-        )
-        with open(filepath, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                ["Date", "Panel", "Zone", "Line Name", "Product Slno",
-                 "Part No", "Target"]
-                + [f"{h:02d}:00" for h in range(24)]
-                + ["Day Total"]
-            )
-            for row in rows:
-                try:
-                    d = date(row["year"], row["month"], row["day"])
-                    date_str = d.strftime("%d-%b-%Y")
-                except ValueError:
-                    date_str = f"{row['year']}-{row['month']:02d}-{row['day']:02d}"
-                writer.writerow(
-                    [date_str, row["panel_id"], row["zone"], row["conveyor"],
-                     row["productslno"] or "", row["partno"] or "",
-                     row["target"] or 0]
-                    + [row[f"hour_{h}"] for h in range(24)]
-                    + [row["day_total"]]
-                )
-        return len(rows)
-
 
     def close(self):
         self._conn.close()
@@ -1492,22 +1448,10 @@ class IndustrialMonitor(QMainWindow):
         if not path:
             return
         try:
-            # Export in the same layout as the Production Table UI view,
-            # honoring the active quick filter and Panel/Zone/Conveyor filters
-            count = self._db.export_production_table_csv(
-                path,
-                quick_filter=self._quick_filter,
-                panel_id=self.combo_f_panel.currentText(),
-                zone=self.combo_f_zone.currentText(),
-                conveyor=self.combo_f_conveyor.currentText(),
-            )
-            self._log(f"Exported {count} row(s) to {path}")
-            QMessageBox.information(
-                self, "Exported", f"Exported {count} row(s) to:\n{path}"
-            )
+            self._db.export_csv(path)
+            self._log(f"Exported to {path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
-            self._log(f"Error exporting CSV: {e}")
 
     # ──────────────────────────────────────────
     #  Production Plan actions

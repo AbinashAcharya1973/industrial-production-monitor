@@ -58,73 +58,36 @@ def parse_packet(raw_line: str) -> dict | None:
     """
     Parse a comma-separated serial packet into a field dict.
 
-    The conveyor "M/C No.XX/YYY" field is the KEY/anchor of the packet:
-    every field the app needs sits at a fixed offset around it.
-
-        ..., PanelID, Year, Month, Day, Hour, Minute, Second, Zone, M/C No.XX/YYY, Count
-
-    The LoRa link often prepends junk fields from a previous line, e.g.
-        999,453,1,26,9,23,20,35,18,1,M/C No.01/850,453      (2 junk fields)
-    Counting fields from the start rejects these lines. Anchoring on the
-    M/C No. field instead makes them parse, while clean lines like
-        1,26,9,23,20,35,4,2,M/C No.08/450,10087
-    parse exactly as before.
+    Format: PanelID,Year,Month,Day,Hour,Minute,Second,ZoneId,ConveyorName,Count
+    Example: 1,2025,5,23,16,21,17,1,"Conveyor Line 1",13
 
     Returns a dict with all fields, or None if the line is invalid.
     """
     parts = [p.strip() for p in raw_line.split(",")]
-    if not parts:
+    if len(parts) != 10:
         return None
-
-    # ── Locate the conveyor (M/C No.) field — the packet's key ──
-    mc_idx = None
-    for i, p in enumerate(parts):
-        if "M/C" in p.upper():
-            mc_idx = i
-            break
-    if mc_idx is None:
-        # Fallback for non-M/C conveyor names (e.g. "Conveyor Line 1"):
-        # use the LAST field containing a letter. Junk prefixes (e.g.
-        # "n6626") always appear BEFORE the real packet, so the last
-        # lettered field is still the conveyor name.
-        for i in range(len(parts) - 1, -1, -1):
-            if any(ch.isalpha() for ch in parts[i]):
-                mc_idx = i
-                break
-    # Need 8 fields before the key (panel..zone) and the count after it
-    if mc_idx is None or mc_idx < 8 or mc_idx + 1 >= len(parts):
-        return None
-
     try:
-        panel_id = int(parts[mc_idx - 8])
-        year     = int(parts[mc_idx - 7])
-        if year < 100:            # HMI sends 2-digit year (e.g. 26 → 2026)
-            year += 2000          # Quick filters compare against 4-digit years
-        month  = int(parts[mc_idx - 6])
-        day    = int(parts[mc_idx - 5])
-        hour   = int(parts[mc_idx - 4])
-        minute = int(parts[mc_idx - 3])
-        second = int(parts[mc_idx - 2])
-        zone   = str(int(parts[mc_idx - 1]))   # stored as TEXT in DB
-        count  = int(parts[mc_idx + 1])
+        panel_id     = int(parts[0])
+        year         = int(parts[1])           # full year now
+        month        = int(parts[2])
+        day          = int(parts[3])
+        hour         = int(parts[4])
+        minute       = int(parts[5])
+        second       = int(parts[6])
+        zone         = str(int(parts[7]))      # stored as TEXT in DB
+        # Normalize conveyor name: strip stray non-printable/control chars
+        # that survive clean_line(), collapse internal whitespace, and trim.
+        # Without this, two packets for the same physical machine can produce
+        # slightly different strings (trailing \x00, double space, etc.) and
+        # GROUP BY treats them as different machines -> duplicate UI rows.
+        raw_conveyor_name = parts[8]
+        conveyor_name = "".join(
+            ch for ch in raw_conveyor_name if 32 <= ord(ch) <= 126
+        )
+        conveyor_name = " ".join(conveyor_name.split())  # collapse whitespace
+        count        = int(parts[9])
     except (ValueError, IndexError):
         return None
-
-    # Sanity-check the anchored fields so a wrong anchor can't store garbage
-    if not (2000 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= 31
-            and 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
-        return None
-
-    # Normalize conveyor name: strip stray non-printable/control chars
-    # that survive clean_line(), collapse internal whitespace, and trim.
-    # Without this, two packets for the same physical machine can produce
-    # slightly different strings (trailing \x00, double space, etc.) and
-    # GROUP BY treats them as different machines -> duplicate UI rows.
-    raw_conveyor_name = parts[mc_idx]
-    conveyor_name = "".join(
-        ch for ch in raw_conveyor_name if 32 <= ord(ch) <= 126
-    )
-    conveyor_name = " ".join(conveyor_name.split())  # collapse whitespace
 
     if not conveyor_name:
         return None
@@ -258,14 +221,6 @@ class DatabaseManager:
                 self._conn.execute(
                     "ALTER TABLE production ADD COLUMN target INTEGER DEFAULT 0"
                 )
-
-            # Migration: normalize 2-digit years stored by older versions
-            # (HMI sends year as 26, not 2026). Quick filters ("Today",
-            # "Last 7/30 Days") compare against 4-digit years, so rows with
-            # 2-digit years never match and disappear from those views.
-            self._conn.execute(
-                "UPDATE production SET year = year + 2000 WHERE year < 100"
-            )
 
             # Migration: normalize existing conveyor names that may contain
             # stray non-printable characters or inconsistent whitespace
@@ -708,17 +663,10 @@ class DatabaseManager:
         with self._lock:
             self._conn.execute("DELETE FROM production")
             self._conn.execute("DELETE FROM products")
-            # Also reset per-machine counter baselines: without this, idle
-            # machines resend the same count after a Clear, it matches the
-            # stale baseline, every packet is ignored, and the table stays
-            # empty ("no data after Clear + reconnect" symptom).
-            self._conn.execute("DELETE FROM machine_counter_state")
             self._conn.commit()
-        self._last_count_by_machine = {}
-
 
     def export_csv(self, filepath: str):
-        """Export production table joined with products to CSV (raw packets)."""
+        """Export production table joined with products to CSV."""
         with self._lock:
             rows = self._conn.execute("""
                 SELECT
@@ -739,50 +687,6 @@ class DatabaseManager:
             ])
             for r in rows:
                 writer.writerow(list(r))
-
-    def export_production_table_csv(self, filepath: str,
-                                    quick_filter: str = "all",
-                                    panel_id: str | None = None,
-                                    zone: str | None = None,
-                                    conveyor: str | None = None) -> int:
-        """
-        Export the Production Table view (UI layout) to CSV: one row per
-        machine per day with the same columns as the on-screen table —
-
-            Date, Panel, Zone, Line Name, Product Slno, Part No, Target,
-            00:00 … 23:00, Day Total
-
-        Honors the same quick_filter / panel / zone / conveyor filters as
-        the UI, so the CSV matches what is currently displayed.
-        Returns the number of data rows written.
-        """
-        rows = self.query_production_table(
-            quick_filter=quick_filter, panel_id=panel_id,
-            zone=zone, conveyor=conveyor,
-        )
-        with open(filepath, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                ["Date", "Panel", "Zone", "Line Name", "Product Slno",
-                 "Part No", "Target"]
-                + [f"{h:02d}:00" for h in range(24)]
-                + ["Day Total"]
-            )
-            for row in rows:
-                try:
-                    d = date(row["year"], row["month"], row["day"])
-                    date_str = d.strftime("%d-%b-%Y")
-                except ValueError:
-                    date_str = f"{row['year']}-{row['month']:02d}-{row['day']:02d}"
-                writer.writerow(
-                    [date_str, row["panel_id"], row["zone"], row["conveyor"],
-                     row["productslno"] or "", row["partno"] or "",
-                     row["target"] or 0]
-                    + [row[f"hour_{h}"] for h in range(24)]
-                    + [row["day_total"]]
-                )
-        return len(rows)
-
 
     def close(self):
         self._conn.close()
@@ -1492,22 +1396,10 @@ class IndustrialMonitor(QMainWindow):
         if not path:
             return
         try:
-            # Export in the same layout as the Production Table UI view,
-            # honoring the active quick filter and Panel/Zone/Conveyor filters
-            count = self._db.export_production_table_csv(
-                path,
-                quick_filter=self._quick_filter,
-                panel_id=self.combo_f_panel.currentText(),
-                zone=self.combo_f_zone.currentText(),
-                conveyor=self.combo_f_conveyor.currentText(),
-            )
-            self._log(f"Exported {count} row(s) to {path}")
-            QMessageBox.information(
-                self, "Exported", f"Exported {count} row(s) to:\n{path}"
-            )
+            self._db.export_csv(path)
+            self._log(f"Exported to {path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
-            self._log(f"Error exporting CSV: {e}")
 
     # ──────────────────────────────────────────
     #  Production Plan actions
