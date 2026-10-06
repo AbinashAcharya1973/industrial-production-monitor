@@ -460,20 +460,6 @@ class DatabaseManager:
              update the stored baseline without inserting a row.
           4. If no previous count exists for the machine, insert the first value as baseline.
         """
-        # The HMI timestamp is not authoritative. Register every accepted
-        # packet using this computer's current local date and time so Today,
-        # hourly totals, and exported records reflect when the data arrived.
-        received_at = datetime.now()
-        fields = dict(fields)
-        fields.update({
-            "year": received_at.year,
-            "month": received_at.month,
-            "day": received_at.day,
-            "hour": received_at.hour,
-            "minute": received_at.minute,
-            "second": received_at.second,
-        })
-
         conveyor_name = fields.get("conveyor_name", "")
         machine_key = self._machine_key(fields)
 

@@ -65,11 +65,28 @@ check("empty rejected", parse_packet("") is None)
 check("truncated packet rejected", parse_packet("1,26,9,23,20,35,6,3,M/C No.09/450") is None)
 check("all-numeric junk rejected", parse_packet("999,453,1,26,9,23,20,35,18,1,453") is None)
 
-# ── 4. End-to-end: clear + junk-prefixed stream → rows appear ──
+# ── 4. Insert registration uses system current date/time ───────
 def must_parse(line: str) -> dict:
     f = parse_packet(line)
     assert f is not None, f"failed to parse: {line}"
     return f
+
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    DatabaseManager.DB_FILE = os.path.join(tmpdir, "production.db")
+    db = DatabaseManager()
+    embedded = must_parse("1,21,1,1,1,2,3,1,M/C No.01/850,10")
+    db.insert(embedded)
+    saved = db._conn.execute(
+        "SELECT year, month, day, hour, minute, second FROM production LIMIT 1"
+    ).fetchone()
+    from datetime import datetime
+    now = datetime.now()
+    registered = datetime(*saved)
+    check("insert uses system current date", registered.date() == now.date())
+    check("insert uses system current time", abs((now - registered).total_seconds()) < 5)
+    check("embedded packet date/time ignored", (saved[0], saved[1], saved[2]) != (21, 1, 1))
+    db.close()
 
 
 with tempfile.TemporaryDirectory() as tmpdir:
