@@ -1,0 +1,385 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Industrial Production Monitor - User Manual</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 18mm 16mm; @bottom-right { content: "Page " counter(page); font-size: 9pt; color: #666; } }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; color: #202124; line-height: 1.42; font-size: 10.5pt; }
+h1 { color: #123b63; font-size: 24pt; margin: 0 0 8pt; border-bottom: 2px solid #2f75b5; padding-bottom: 6pt; }
+h2 { color: #174f7c; font-size: 16pt; margin-top: 20pt; page-break-after: avoid; border-bottom: 1px solid #b9cde0; padding-bottom: 3pt; }
+h3 { color: #245d84; font-size: 12.5pt; margin-top: 13pt; page-break-after: avoid; }
+p, ul, ol { margin: 5pt 0 8pt; }
+ul, ol { padding-left: 20pt; }
+li { margin: 2pt 0; }
+table { width: 100%; border-collapse: collapse; margin: 9pt 0 13pt; font-size: 9.2pt; page-break-inside: avoid; }
+thead { display: table-header-group; }
+th { background: #dbeaf7; color: #163d5d; font-weight: bold; text-align: left; }
+th, td { border: 0.6pt solid #8ca7bd; padding: 5pt 6pt; vertical-align: top; }
+tr:nth-child(even) td { background: #f5f8fb; }
+code { font-family: 'DejaVu Sans Mono', monospace; background: #f0f2f4; padding: 1pt 3pt; border-radius: 2pt; }
+pre { background: #f3f5f7; border: 0.6pt solid #ccd5dc; padding: 7pt; white-space: pre-wrap; font-size: 8.5pt; page-break-inside: avoid; }
+strong { color: #123b63; }
+blockquote { border-left: 3pt solid #2f75b5; padding-left: 9pt; color: #4c5964; }
+hr { border: none; border-top: 1px solid #bbb; }
+</style></head><body><h1>Industrial Production Monitor — User Manual</h1>
+<h2>1. Purpose</h2>
+<p>Industrial Production Monitor receives production counter data from HMI/conveyor equipment through a serial COM port, stores it in SQLite, and displays production totals by machine, zone, date, and hour.</p>
+<p>The application uses the <strong>M/C No. field as the machine reference</strong>, for example:</p>
+<pre><code class="language-text">M/C No.01/850
+M/C No.06/550
+M/C No.09/450
+</code></pre>
+<h2>2. Requirements</h2>
+<ul>
+<li>Python 3.10 or newer</li>
+<li>PyQt5</li>
+<li>pyserial</li>
+<li>A connected HMI/LoRa serial device</li>
+<li>The correct COM port</li>
+<li>The correct baud rate, normally <code>9600</code></li>
+</ul>
+<p>Install dependencies from the project directory:</p>
+<pre><code class="language-bash">pip install -r requirements.txt
+</code></pre>
+<p>Start the program:</p>
+<pre><code class="language-bash">python main.py
+</code></pre>
+<p>When using the project virtual environment:</p>
+<pre><code class="language-bash">.venv/bin/python main.py
+</code></pre>
+<h2>3. Main screen</h2>
+<p>The main window contains:</p>
+<ul>
+<li>Toolbar</li>
+<li>Serial connection panel</li>
+<li>Status and activity log panel</li>
+<li>Production summary cards</li>
+<li>Production Table tab</li>
+<li>24-Hour View tab</li>
+<li>Production Plan tab</li>
+</ul>
+<h3>Summary cards</h3>
+<table>
+<thead>
+<tr>
+<th>Card</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total Production</td>
+<td>Total production records stored in the database</td>
+</tr>
+<tr>
+<td>Conveyor Lines</td>
+<td>Number of distinct panel/zone/machine combinations in stored data</td>
+</tr>
+<tr>
+<td>Packets Received</td>
+<td>Number of production rows stored by the current application session/database query</td>
+</tr>
+<tr>
+<td>Current COM Port</td>
+<td>Connected serial port</td>
+</tr>
+<tr>
+<td>Last Update</td>
+<td>Current computer date and time shown by the application</td>
+</tr>
+<tr>
+<td>System Uptime</td>
+<td>Time since the application was started</td>
+</tr>
+</tbody>
+</table>
+<h2>4. Connecting to the HMI</h2>
+<ol>
+<li>Connect the HMI/LoRa serial device to the computer.</li>
+<li>Start the application.</li>
+<li>Click <strong>Refresh Ports</strong>.</li>
+<li>Select the required COM port, for example <code>COM3</code>.</li>
+<li>Select the baud rate. The normal value is <code>9600</code>.</li>
+<li>Click <strong>Connect</strong>.</li>
+<li>Confirm that the status changes to <strong>Status: Connected</strong>.</li>
+<li>Wait for valid packets to appear in the Activity Log and tables.</li>
+</ol>
+<p>The application supports these baud rates:</p>
+<pre><code class="language-text">9600, 19200, 38400, 57600, 115200
+</code></pre>
+<p>To stop receiving data, click <strong>Disconnect</strong>.</p>
+<h2>5. HMI packet processing</h2>
+<p>The HMI commonly sends data in this logical format:</p>
+<pre><code class="language-text">Panel,Year,Month,Day,Hour,Minute,Second,Zone,M/C No.,Count
+</code></pre>
+<p>Example clean packet:</p>
+<pre><code class="language-text">1,26,10,5,17,50,58,2,M/C No.08/450,12106
+</code></pre>
+<p>The application also handles packets with corrupted or leftover prefix fields, such as:</p>
+<pre><code class="language-text">1022,4376,1,26,10,5,17,50,49,1,M/C No.01/850,4376
+</code></pre>
+<p>For this packet, the application identifies the fields relative to <code>M/C No.01/850</code> and reads:</p>
+<ul>
+<li>Panel: <code>1</code></li>
+<li>Year: <code>26</code></li>
+<li>Zone: <code>1</code></li>
+<li>Machine: <code>M/C No.01/850</code></li>
+<li>Count: <code>4376</code></li>
+</ul>
+<p>The application rejects fragments such as <code>621</code>, <code>2621</code>, <code>r</code>, and incomplete packets.</p>
+<h2>6. Date and time handling</h2>
+<p>The HMI date and time are used only for packet validation. Accepted production records are registered using the computer's current local date and time when the packet is received.</p>
+<p>Therefore:</p>
+<ul>
+<li>HMI date/time does not determine the production date in the database.</li>
+<li>The computer clock and timezone must be correct.</li>
+<li>Packets received after midnight are stored under the new system date automatically.</li>
+<li>Hourly totals use the computer's current hour.</li>
+</ul>
+<p>Example:</p>
+<pre><code class="language-text">Packet received at 00:05 on 07-Oct-2026
+→ Stored as 07-Oct-2026, hour 00:00
+</code></pre>
+<h2>7. Production counter behavior</h2>
+<p>The program tracks the latest counter value separately for each machine.</p>
+<table>
+<thead>
+<tr>
+<th>Incoming counter condition</th>
+<th>Application behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First value for a machine</td>
+<td>Stores the full value and creates a production record</td>
+</tr>
+<tr>
+<td>Same value as previous packet</td>
+<td>Ignores it as a duplicate</td>
+</tr>
+<tr>
+<td>Higher value</td>
+<td>Stores only the increase/delta</td>
+</tr>
+<tr>
+<td>Lower value</td>
+<td>Treats it as a machine counter reset and updates the baseline without storing a negative value</td>
+</tr>
+</tbody>
+</table>
+<p>Example:</p>
+<pre><code class="language-text">Previous count: 100
+New count: 108
+Production recorded: 8
+</code></pre>
+<h2>8. Production Table</h2>
+<p>The <strong>Production Table</strong> shows one aggregated row per date, panel, zone, machine, product, and target.</p>
+<p>Columns include:</p>
+<ul>
+<li>Date</li>
+<li>Panel</li>
+<li>Zone</li>
+<li>Line Name / M/C No.</li>
+<li>Product Slno</li>
+<li>Part No</li>
+<li>Target</li>
+<li>Hourly totals from <code>00:00</code> through <code>23:00</code></li>
+</ul>
+<h3>Quick filters</h3>
+<ul>
+<li><strong>Today</strong> — current computer date only</li>
+<li><strong>Last 7 Days</strong> — current date and previous six days</li>
+<li><strong>Last 30 Days</strong> — current date and previous 29 days</li>
+<li><strong>All</strong> — all stored production records</li>
+</ul>
+<h3>Dropdown filters</h3>
+<p>The table can also be filtered by:</p>
+<ul>
+<li>Panel</li>
+<li>Zone</li>
+<li>Conveyor / M/C No.</li>
+</ul>
+<p>Filters are applied to the Production Table and 24-Hour View.</p>
+<h2>9. 24-Hour View</h2>
+<p>The <strong>24-Hour View</strong> combines the selected date range into hourly totals per machine.</p>
+<p>It is useful for reviewing total activity by hour across the selected filter period.</p>
+<h2>10. Production Plan</h2>
+<p>The <strong>Production Plan</strong> tab assigns a product and target to each configured machine.</p>
+<p>For each machine:</p>
+<ol>
+<li>Select the product from the product dropdown.</li>
+<li>Enter the target value.</li>
+<li>Click <strong>Save Plan</strong>.</li>
+</ol>
+<p>The selected product and target are associated with the machine's configured conveyor name. New production records use this plan information when the machine name matches.</p>
+<h3>Plan buttons</h3>
+<ul>
+<li><strong>Save Plan</strong> — saves the current selections</li>
+<li><strong>Clear</strong> — clears the values currently shown in the form</li>
+<li><strong>Export Plan CSV</strong> — exports the current plan</li>
+</ul>
+<p>Before replacing an existing plan, the application attempts to create a backup under:</p>
+<pre><code class="language-text">plan_backups/
+</code></pre>
+<p>If the backup fails, the application asks whether the new plan should still be saved.</p>
+<h3>Machine and product configuration</h3>
+<p>The Production Plan form reads machines from the <code>machine_list</code> database table and products from the <code>products</code> table. If no machines are configured, the form displays a message explaining that machines must be added to <code>machine_list</code>.</p>
+<h2>11. Exporting production data</h2>
+<p>The toolbar <strong>Export CSV</strong> button exports the same aggregated format as the Production Table.</p>
+<p>The export includes:</p>
+<pre><code class="language-text">Date, Panel, Zone, Line Name, Product Slno, Part No, Target,
+00:00 ... 23:00, Day Total
+</code></pre>
+<p>The export respects the currently selected:</p>
+<ul>
+<li>Quick filter</li>
+<li>Panel filter</li>
+<li>Zone filter</li>
+<li>Conveyor/M/C filter</li>
+</ul>
+<p>To export:</p>
+<ol>
+<li>Select the required filters.</li>
+<li>Click <strong>Export CSV</strong>.</li>
+<li>Select the destination filename.</li>
+<li>Confirm the export.</li>
+</ol>
+<p>The application reports the number of exported rows after completion.</p>
+<h2>12. Clearing production data</h2>
+<p>The toolbar <strong>Clear</strong> button permanently deletes:</p>
+<ul>
+<li>Production records</li>
+<li>Product records</li>
+<li>Machine counter baselines</li>
+</ul>
+<p>It also resets the in-memory counter state.</p>
+<p>A confirmation dialog appears before deletion.</p>
+<h3>Important warning</h3>
+<p>After clearing, the first counter value received from each machine is treated as a new starting value. If the HMI sends a cumulative counter such as <code>4376</code>, the first record after Clear may record <code>4376</code> as the initial production value.</p>
+<p>Use Clear only when starting a new database period or when intentionally resetting the records.</p>
+<h2>13. Activity Log</h2>
+<p>The Activity Log records:</p>
+<ul>
+<li>Serial connection and disconnection</li>
+<li>Raw received lines</li>
+<li>Cleaned lines</li>
+<li>Parsed packet details</li>
+<li>Database record IDs</li>
+<li>Invalid packets</li>
+<li>Serial errors</li>
+<li>Export operations</li>
+<li>Plan operations</li>
+</ul>
+<p>A high error count can indicate:</p>
+<ul>
+<li>Incorrect baud rate</li>
+<li>Wrong COM port</li>
+<li>HMI/LoRa line-framing corruption</li>
+<li>Incomplete packets</li>
+<li>Unsupported packet format</li>
+<li>Device communication problems</li>
+</ul>
+<p>Fragments such as <code>621</code> or <code>2621</code> are expected to be rejected when they are not complete packets.</p>
+<h2>14. Dark and Light mode</h2>
+<p>Click the <strong>Dark Mode</strong> button in the toolbar to toggle between dark and light themes.</p>
+<p>The mode affects only the display. It does not affect data storage or packet processing.</p>
+<h2>15. Daily operation recommendation</h2>
+<p>Before starting production:</p>
+<ol>
+<li>Confirm the computer date, time, and timezone.</li>
+<li>Connect the HMI device.</li>
+<li>Confirm the expected COM port.</li>
+<li>Select the correct baud rate.</li>
+<li>Click <strong>Refresh Ports</strong>.</li>
+<li>Click <strong>Connect</strong>.</li>
+<li>Confirm valid M/C numbers appear in the log.</li>
+<li>Select <strong>Today</strong> for the current production view.</li>
+<li>Confirm the hourly values are increasing for active machines.</li>
+<li>Export a CSV report when required.</li>
+</ol>
+<p>At the end of a reporting period:</p>
+<ol>
+<li>Export the production CSV.</li>
+<li>Export the Production Plan if required.</li>
+<li>Keep the database file as the source record.</li>
+<li>Do not use <strong>Clear</strong> unless a new data period is intentionally being started.</li>
+</ol>
+<h2>16. Troubleshooting</h2>
+<h3>COM port is not listed</h3>
+<ul>
+<li>Check the USB/serial cable.</li>
+<li>Confirm the device driver is installed.</li>
+<li>Click <strong>Refresh Ports</strong>.</li>
+<li>Close other programs using the port.</li>
+<li>Reconnect the device.</li>
+</ul>
+<h3>Connected but no valid rows appear</h3>
+<ul>
+<li>Confirm the baud rate.</li>
+<li>Check the Activity Log for <code>Invalid packet</code> messages.</li>
+<li>Confirm that the HMI is transmitting complete packets.</li>
+<li>Confirm that packets contain a valid <code>M/C No.XX/YYY</code> field.</li>
+<li>Confirm the selected quick filter is not hiding older data.</li>
+</ul>
+<h3>Data appears under the wrong date</h3>
+<ul>
+<li>Check the computer date and time.</li>
+<li>Check the computer timezone.</li>
+<li>Restart the application after correcting the system clock.</li>
+<li>Remember that current versions use computer receive time, not HMI packet time.</li>
+</ul>
+<h3>A machine appears more than once</h3>
+<ul>
+<li>Check for inconsistent M/C names or hidden characters.</li>
+<li>Check for old data recorded before the M/C-anchored parser was installed.</li>
+<li>Export the data and inspect the Panel, Zone, and Line Name columns.</li>
+<li>If necessary, back up the database and clear or migrate the affected records.</li>
+</ul>
+<h3>Production does not appear after Clear</h3>
+<ul>
+<li>Wait for the next packet from the HMI.</li>
+<li>Confirm that the serial status is Connected.</li>
+<li>Check the Activity Log.</li>
+<li>The first packet from each machine establishes a new counter baseline.</li>
+</ul>
+<h2>17. Data files</h2>
+<p>The main application files are:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main.py</code></td>
+<td>Application source code</td>
+</tr>
+<tr>
+<td><code>production.db</code></td>
+<td>SQLite production database</td>
+</tr>
+<tr>
+<td><code>requirements.txt</code></td>
+<td>Python dependencies</td>
+</tr>
+<tr>
+<td><code>plan_backups/</code></td>
+<td>Automatic Production Plan CSV backups</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>Parser and counter verification scripts</td>
+</tr>
+</tbody>
+</table>
+<p>Back up <code>production.db</code> before deleting data, changing the schema, or performing maintenance.</p>
+<h2>18. Safe shutdown</h2>
+<p>To close the application:</p>
+<ol>
+<li>Click <strong>Disconnect</strong> if connected.</li>
+<li>Confirm that the status changes to Disconnected.</li>
+<li>Close the application window.</li>
+</ol>
+<p>The application also attempts to disconnect the serial worker and close the database during normal window shutdown.</p></body></html>
