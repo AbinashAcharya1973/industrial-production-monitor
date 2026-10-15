@@ -28,25 +28,7 @@ hr { border: none; border-top: 1px solid #bbb; }
 M/C No.06/550
 M/C No.09/450
 </code></pre>
-<h2>2. Requirements</h2>
-<ul>
-<li>Python 3.10 or newer</li>
-<li>PyQt5</li>
-<li>pyserial</li>
-<li>A connected HMI/LoRa serial device</li>
-<li>The correct COM port</li>
-<li>The correct baud rate, normally <code>9600</code></li>
-</ul>
-<p>Install dependencies from the project directory:</p>
-<pre><code class="language-bash">pip install -r requirements.txt
-</code></pre>
-<p>Start the program:</p>
-<pre><code class="language-bash">python main.py
-</code></pre>
-<p>When using the project virtual environment:</p>
-<pre><code class="language-bash">.venv/bin/python main.py
-</code></pre>
-<h2>3. Main screen</h2>
+<h2>2. Main screen</h2>
 <p>The main window contains:</p>
 <ul>
 <li>Toolbar</li>
@@ -92,7 +74,7 @@ M/C No.09/450
 </tr>
 </tbody>
 </table>
-<h2>4. Connecting to the HMI</h2>
+<h2>3. Connecting to the HMI</h2>
 <ol>
 <li>Connect the HMI/LoRa serial device to the computer.</li>
 <li>Start the application.</li>
@@ -107,7 +89,7 @@ M/C No.09/450
 <pre><code class="language-text">9600, 19200, 38400, 57600, 115200
 </code></pre>
 <p>To stop receiving data, click <strong>Disconnect</strong>.</p>
-<h2>5. HMI packet processing</h2>
+<h2>4. HMI packet processing</h2>
 <p>The HMI commonly sends data in this logical format:</p>
 <pre><code class="language-text">Panel,Year,Month,Day,Hour,Minute,Second,Zone,M/C No.,Count
 </code></pre>
@@ -126,7 +108,7 @@ M/C No.09/450
 <li>Count: <code>4376</code></li>
 </ul>
 <p>The application rejects fragments such as <code>621</code>, <code>2621</code>, <code>r</code>, and incomplete packets.</p>
-<h2>6. Date and time handling</h2>
+<h2>5. Date and time handling</h2>
 <p>The HMI date and time are used only for packet validation. Accepted production records are registered using the computer's current local date and time when the packet is received.</p>
 <p>Therefore:</p>
 <ul>
@@ -139,7 +121,7 @@ M/C No.09/450
 <pre><code class="language-text">Packet received at 00:05 on 07-Oct-2026
 → Stored as 07-Oct-2026, hour 00:00
 </code></pre>
-<h2>7. Production counter behavior</h2>
+<h2>6. Production counter behavior</h2>
 <p>The program tracks the latest counter value separately for each machine.</p>
 <table>
 <thead>
@@ -172,7 +154,7 @@ M/C No.09/450
 New count: 108
 Production recorded: 8
 </code></pre>
-<h2>8. Production Table</h2>
+<h2>7. Production Table</h2>
 <p>The <strong>Production Table</strong> shows one aggregated row per date, panel, zone, machine, product, and target.</p>
 <p>Columns include:</p>
 <ul>
@@ -200,10 +182,10 @@ Production recorded: 8
 <li>Conveyor / M/C No.</li>
 </ul>
 <p>Filters are applied to the Production Table and 24-Hour View.</p>
-<h2>9. 24-Hour View</h2>
+<h2>8. 24-Hour View</h2>
 <p>The <strong>24-Hour View</strong> combines the selected date range into hourly totals per machine.</p>
 <p>It is useful for reviewing total activity by hour across the selected filter period.</p>
-<h2>10. Production Plan</h2>
+<h2>9. Production Plan</h2>
 <p>The <strong>Production Plan</strong> tab assigns a product and target to each configured machine.</p>
 <p>For each machine:</p>
 <ol>
@@ -224,7 +206,7 @@ Production recorded: 8
 <p>If the backup fails, the application asks whether the new plan should still be saved.</p>
 <h3>Machine and product configuration</h3>
 <p>The Production Plan form reads machines from the <code>machine_list</code> database table and products from the <code>products</code> table. If no machines are configured, the form displays a message explaining that machines must be added to <code>machine_list</code>.</p>
-<h2>11. Exporting production data</h2>
+<h2>10. Exporting production data</h2>
 <p>The toolbar <strong>Export CSV</strong> button exports the same aggregated format as the Production Table.</p>
 <p>The export includes:</p>
 <pre><code class="language-text">Date, Panel, Zone, Line Name, Product Slno, Part No, Target,
@@ -245,7 +227,7 @@ Production recorded: 8
 <li>Confirm the export.</li>
 </ol>
 <p>The application reports the number of exported rows after completion.</p>
-<h2>12. Clearing production data</h2>
+<h2>11. Clearing production data</h2>
 <p>The toolbar <strong>Clear</strong> button permanently deletes:</p>
 <ul>
 <li>Production records</li>
@@ -257,7 +239,7 @@ Production recorded: 8
 <h3>Important warning</h3>
 <p>After clearing, the first counter value received from each machine is treated as a new starting value. If the HMI sends a cumulative counter such as <code>4376</code>, the first record after Clear may record <code>4376</code> as the initial production value.</p>
 <p>Use Clear only when starting a new database period or when intentionally resetting the records.</p>
-<h2>13. Activity Log</h2>
+<h2>12. Activity Log</h2>
 <p>The Activity Log records:</p>
 <ul>
 <li>Serial connection and disconnection</li>
@@ -280,10 +262,10 @@ Production recorded: 8
 <li>Device communication problems</li>
 </ul>
 <p>Fragments such as <code>621</code> or <code>2621</code> are expected to be rejected when they are not complete packets.</p>
-<h2>14. Dark and Light mode</h2>
+<h2>13. Dark and Light mode</h2>
 <p>Click the <strong>Dark Mode</strong> button in the toolbar to toggle between dark and light themes.</p>
 <p>The mode affects only the display. It does not affect data storage or packet processing.</p>
-<h2>15. Daily operation recommendation</h2>
+<h2>14. Daily operation recommendation</h2>
 <p>Before starting production:</p>
 <ol>
 <li>Confirm the computer date, time, and timezone.</li>
@@ -304,7 +286,7 @@ Production recorded: 8
 <li>Keep the database file as the source record.</li>
 <li>Do not use <strong>Clear</strong> unless a new data period is intentionally being started.</li>
 </ol>
-<h2>16. Troubleshooting</h2>
+<h2>15. Troubleshooting</h2>
 <h3>COM port is not listed</h3>
 <ul>
 <li>Check the USB/serial cable.</li>
@@ -342,40 +324,7 @@ Production recorded: 8
 <li>Check the Activity Log.</li>
 <li>The first packet from each machine establishes a new counter baseline.</li>
 </ul>
-<h2>17. Data files</h2>
-<p>The main application files are:</p>
-<table>
-<thead>
-<tr>
-<th>File</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>main.py</code></td>
-<td>Application source code</td>
-</tr>
-<tr>
-<td><code>production.db</code></td>
-<td>SQLite production database</td>
-</tr>
-<tr>
-<td><code>requirements.txt</code></td>
-<td>Python dependencies</td>
-</tr>
-<tr>
-<td><code>plan_backups/</code></td>
-<td>Automatic Production Plan CSV backups</td>
-</tr>
-<tr>
-<td><code>tests/</code></td>
-<td>Parser and counter verification scripts</td>
-</tr>
-</tbody>
-</table>
-<p>Back up <code>production.db</code> before deleting data, changing the schema, or performing maintenance.</p>
-<h2>18. Safe shutdown</h2>
+<h2>16. Safe shutdown</h2>
 <p>To close the application:</p>
 <ol>
 <li>Click <strong>Disconnect</strong> if connected.</li>

@@ -12,34 +12,7 @@ M/C No.06/550
 M/C No.09/450
 ```
 
-## 2. Requirements
-
-- Python 3.10 or newer
-- PyQt5
-- pyserial
-- A connected HMI/LoRa serial device
-- The correct COM port
-- The correct baud rate, normally `9600`
-
-Install dependencies from the project directory:
-
-```bash
-pip install -r requirements.txt
-```
-
-Start the program:
-
-```bash
-python main.py
-```
-
-When using the project virtual environment:
-
-```bash
-.venv/bin/python main.py
-```
-
-## 3. Main screen
+## 2. Main screen
 
 The main window contains:
 
@@ -62,7 +35,7 @@ The main window contains:
 | Last Update | Current computer date and time shown by the application |
 | System Uptime | Time since the application was started |
 
-## 4. Connecting to the HMI
+## 3. Connecting to the HMI
 
 1. Connect the HMI/LoRa serial device to the computer.
 2. Start the application.
@@ -81,7 +54,7 @@ The application supports these baud rates:
 
 To stop receiving data, click **Disconnect**.
 
-## 5. HMI packet processing
+## 4. HMI packet processing
 
 The HMI commonly sends data in this logical format:
 
@@ -111,7 +84,7 @@ For this packet, the application identifies the fields relative to `M/C No.01/85
 
 The application rejects fragments such as `621`, `2621`, `r`, and incomplete packets.
 
-## 6. Date and time handling
+## 5. Date and time handling
 
 The HMI date and time are used only for packet validation. Accepted production records are registered using the computer's current local date and time when the packet is received.
 
@@ -129,7 +102,7 @@ Packet received at 00:05 on 07-Oct-2026
 → Stored as 07-Oct-2026, hour 00:00
 ```
 
-## 7. Production counter behavior
+## 6. Production counter behavior
 
 The program tracks the latest counter value separately for each machine.
 
@@ -148,7 +121,7 @@ New count: 108
 Production recorded: 8
 ```
 
-## 8. Production Table
+## 7. Production Table
 
 The **Production Table** shows one aggregated row per date, panel, zone, machine, product, and target.
 
@@ -180,13 +153,13 @@ The table can also be filtered by:
 
 Filters are applied to the Production Table and 24-Hour View.
 
-## 9. 24-Hour View
+## 8. 24-Hour View
 
 The **24-Hour View** combines the selected date range into hourly totals per machine.
 
 It is useful for reviewing total activity by hour across the selected filter period.
 
-## 10. Production Plan
+## 9. Production Plan
 
 The **Production Plan** tab assigns a product and target to each configured machine.
 
@@ -216,7 +189,7 @@ If the backup fails, the application asks whether the new plan should still be s
 
 The Production Plan form reads machines from the `machine_list` database table and products from the `products` table. If no machines are configured, the form displays a message explaining that machines must be added to `machine_list`.
 
-## 11. Exporting production data
+## 10. Exporting production data
 
 The toolbar **Export CSV** button exports the same aggregated format as the Production Table.
 
@@ -243,7 +216,7 @@ To export:
 
 The application reports the number of exported rows after completion.
 
-## 12. Clearing production data
+## 11. Clearing production data
 
 The toolbar **Clear** button permanently deletes:
 
@@ -261,7 +234,7 @@ After clearing, the first counter value received from each machine is treated as
 
 Use Clear only when starting a new database period or when intentionally resetting the records.
 
-## 13. Activity Log
+## 12. Activity Log
 
 The Activity Log records:
 
@@ -286,13 +259,13 @@ A high error count can indicate:
 
 Fragments such as `621` or `2621` are expected to be rejected when they are not complete packets.
 
-## 14. Dark and Light mode
+## 13. Dark and Light mode
 
 Click the **Dark Mode** button in the toolbar to toggle between dark and light themes.
 
 The mode affects only the display. It does not affect data storage or packet processing.
 
-## 15. Daily operation recommendation
+## 14. Daily operation recommendation
 
 Before starting production:
 
@@ -314,7 +287,7 @@ At the end of a reporting period:
 3. Keep the database file as the source record.
 4. Do not use **Clear** unless a new data period is intentionally being started.
 
-## 16. Troubleshooting
+## 15. Troubleshooting
 
 ### COM port is not listed
 
@@ -353,21 +326,7 @@ At the end of a reporting period:
 - Check the Activity Log.
 - The first packet from each machine establishes a new counter baseline.
 
-## 17. Data files
-
-The main application files are:
-
-| File | Purpose |
-|---|---|
-| `main.py` | Application source code |
-| `production.db` | SQLite production database |
-| `requirements.txt` | Python dependencies |
-| `plan_backups/` | Automatic Production Plan CSV backups |
-| `tests/` | Parser and counter verification scripts |
-
-Back up `production.db` before deleting data, changing the schema, or performing maintenance.
-
-## 18. Safe shutdown
+## 16. Safe shutdown
 
 To close the application:
 
